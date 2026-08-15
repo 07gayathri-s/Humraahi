@@ -259,8 +259,23 @@ Before testing:
 - [ ] Consent screen configured (use direct URL)
 - [ ] `app/google-services.json` downloaded locally
 - [ ] `secrets.properties` contains `GOOGLE_WEB_CLIENT_ID`
+- [ ] Firestore rules deployed
 - [ ] Build successful
 - [ ] App runs
+
+### Deploy Firestore rules
+
+Install and authenticate Firebase CLI, then deploy the repository's rules:
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only firestore:rules --project YOUR_FIREBASE_PROJECT_ID
+```
+
+The rules require authentication, restrict trip reads to members, ensure users can only
+send messages as themselves, and let someone with an exact trip link add only their own
+account to that trip.
 
 ---
 
