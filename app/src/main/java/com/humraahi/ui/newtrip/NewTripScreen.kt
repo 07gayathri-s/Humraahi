@@ -8,19 +8,37 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.humraahi.model.Trip
+import com.humraahi.ui.home.CreateTripState
 import com.humraahi.ui.home.HomeViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewTripScreen(navController: NavController, viewModel: HomeViewModel) {
+    val createTripState by viewModel.createTripState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
     var destination by remember { mutableStateOf("") }
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
 
     val isValid = destination.isNotBlank() && startDate.isNotBlank() && endDate.isNotBlank()
+    val isSaving = createTripState is CreateTripState.Saving
+
+    LaunchedEffect(createTripState) {
+        when (val state = createTripState) {
+            CreateTripState.Success -> {
+                viewModel.resetCreateTripState()
+                navController.popBackStack()
+            }
+            is CreateTripState.Error -> {
+                snackbarHostState.showSnackbar(state.message)
+                viewModel.resetCreateTripState()
+            }
+            else -> Unit
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("New Trip") },
@@ -36,13 +54,13 @@ fun NewTripScreen(navController: NavController, viewModel: HomeViewModel) {
             destination = destination,
             startDate = startDate,
             endDate = endDate,
-            isValid = isValid,
+            isCreateEnabled = isValid && !isSaving,
+            isSaving = isSaving,
             onDestinationChange = { destination = it },
             onStartDateChange = { startDate = it },
             onEndDateChange = { endDate = it },
             onCreateClick = {
-                viewModel.addTrip(Trip(destination = destination, startDate = startDate, endDate = endDate))
-                navController.popBackStack()
+                viewModel.createTrip(destination, startDate, endDate)
             },
             modifier = Modifier.padding(innerPadding)
         )
@@ -54,7 +72,8 @@ fun TripForm(
     destination: String,
     startDate: String,
     endDate: String,
-    isValid: Boolean,
+    isCreateEnabled: Boolean,
+    isSaving: Boolean,
     onDestinationChange: (String) -> Unit,
     onStartDateChange: (String) -> Unit,
     onEndDateChange: (String) -> Unit,
@@ -93,10 +112,17 @@ fun TripForm(
         )
         Button(
             onClick = onCreateClick,
-            enabled = isValid,
+            enabled = isCreateEnabled,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Create Trip")
+            if (isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text("Create Trip")
+            }
         }
     }
 }
