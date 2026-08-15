@@ -18,50 +18,64 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun ChatScreen(tripId: String, viewModel: ChatViewModel = viewModel(factory = ChatViewModel.factory(tripId))) {
     val messages by viewModel.messages.collectAsState()
+    val sendError by viewModel.sendError.collectAsState()
     val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
     var inputText by remember { mutableStateOf("") }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(vertical = 12.dp)
-        ) {
-            items(messages, key = { it.id }) { message ->
-                MessageBubble(message)
-            }
+    LaunchedEffect(sendError) {
+        sendError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSendError()
         }
+    }
 
-        MessageInputBar(
-            text = inputText,
-            onTextChange = { inputText = it },
-            onSend = {
-                viewModel.sendMessage(inputText)
-                inputText = ""
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
+            ) {
+                items(messages, key = { it.id }) { message ->
+                    MessageBubble(
+                        message = message,
+                        isSentByMe = message.isSentBy(viewModel.currentUserId)
+                    )
+                }
             }
-        )
+
+            MessageInputBar(
+                text = inputText,
+                onTextChange = { inputText = it },
+                onSend = {
+                    viewModel.sendMessage(inputText)
+                    inputText = ""
+                }
+            )
+        }
     }
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
-    val bubbleColor = if (message.isSentByMe)
+private fun MessageBubble(message: ChatMessage, isSentByMe: Boolean) {
+    val bubbleColor = if (isSentByMe)
         MaterialTheme.colorScheme.primary
     else
         MaterialTheme.colorScheme.surfaceVariant
 
-    val textColor = if (message.isSentByMe)
+    val textColor = if (isSentByMe)
         MaterialTheme.colorScheme.onPrimary
     else
         MaterialTheme.colorScheme.onSurfaceVariant
 
-    val alignment = if (message.isSentByMe) Alignment.End else Alignment.Start
-    val bubbleShape = if (message.isSentByMe)
+    val alignment = if (isSentByMe) Alignment.End else Alignment.Start
+    val bubbleShape = if (isSentByMe)
         RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp)
     else
         RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp)
@@ -70,7 +84,7 @@ private fun MessageBubble(message: ChatMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = alignment
     ) {
-        if (!message.isSentByMe) {
+        if (!isSentByMe) {
             Text(
                 text = message.senderName,
                 style = MaterialTheme.typography.labelSmall,

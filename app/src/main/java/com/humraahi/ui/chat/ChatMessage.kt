@@ -2,25 +2,27 @@ package com.humraahi.ui.chat
 
 data class ChatMessage(
     val id: String,
+    val senderId: String,
     val senderName: String,
     val text: String,
-    val isSentByMe: Boolean,
     val timestamp: Long = System.currentTimeMillis()
 ) {
     fun toMap() = mapOf(
         "senderName" to senderName,
-        "senderId" to if (isSentByMe) "local_user" else senderName,
+        "senderId" to senderId,
         "text" to text,
         "timestamp" to timestamp
     )
+
+    fun isSentBy(userId: String): Boolean = senderId == userId
 
     companion object {
         fun fromMap(id: String, map: Map<String, Any>): ChatMessage {
             return ChatMessage(
                 id = id,
+                senderId = map["senderId"] as? String ?: "",
                 senderName = map["senderName"] as? String ?: "",
                 text = map["text"] as? String ?: "",
-                isSentByMe = (map["senderId"] as? String) == "local_user",
                 timestamp = (map["timestamp"] as? Number)?.toLong() ?: 0L
             )
         }
