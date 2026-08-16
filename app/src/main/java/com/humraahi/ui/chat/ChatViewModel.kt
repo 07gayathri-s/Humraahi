@@ -1,5 +1,7 @@
 package com.humraahi.ui.chat
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -12,12 +14,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class ChatViewModel(private val tripId: String) : ViewModel() {
-    private val repository = ChatRepository()
+class ChatViewModel(
+    application: Application,
+    private val tripId: String
+) : AndroidViewModel(application) {
+    private val repository = ChatRepository(application)
     private val auth: FirebaseAuth = Firebase.auth
     private val currentUser = auth.currentUser
 
@@ -25,6 +32,12 @@ class ChatViewModel(private val tripId: String) : ViewModel() {
 
     private val _sendError = MutableStateFlow<String?>(null)
     val sendError: StateFlow<String?> = _sendError.asStateFlow()
+
+    init {
+        repository.syncErrors
+            .onEach { error -> _sendError.value = error }
+            .launchIn(viewModelScope)
+    }
 
     val messages: StateFlow<List<ChatMessage>> = repository
         .getMessages(tripId)
@@ -69,10 +82,14 @@ class ChatViewModel(private val tripId: String) : ViewModel() {
     }
 
     companion object {
-        fun factory(tripId: String) = object : ViewModelProvider.Factory {
+        fun factory(
+            application: Application,
+            tripId: String
+        ) = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                require(modelClass.isAssignableFrom(ChatViewModel::class.java))
                 @Suppress("UNCHECKED_CAST")
-                return ChatViewModel(tripId) as T
+                return ChatViewModel(application, tripId) as T
             }
         }
     }

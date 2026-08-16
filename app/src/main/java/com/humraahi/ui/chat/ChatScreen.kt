@@ -1,5 +1,6 @@
 package com.humraahi.ui.chat
 
+import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,11 +13,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun ChatScreen(tripId: String, viewModel: ChatViewModel = viewModel(factory = ChatViewModel.factory(tripId))) {
+fun ChatScreen(tripId: String) {
+    val application = LocalContext.current.applicationContext as Application
+    val viewModel: ChatViewModel = viewModel(
+        factory = ChatViewModel.factory(application, tripId)
+    )
     val messages by viewModel.messages.collectAsState()
     val sendError by viewModel.sendError.collectAsState()
     val listState = rememberLazyListState()
