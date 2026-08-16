@@ -27,16 +27,17 @@ service cloud.firestore {
         || (
           isSignedIn()
           && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['memberIds', 'members'])
+            .hasOnly(['memberIds'])
           && request.resource.data.memberIds.hasAll(resource.data.memberIds)
           && request.resource.data.memberIds.hasOnly(
             resource.data.memberIds.concat([request.auth.uid])
           )
-          && request.resource.data.memberIds.size()
-            == resource.data.memberIds.size() + 1
-          && request.resource.data.members.hasAll(resource.data.members)
-          && request.resource.data.members.size()
-            == resource.data.members.size() + 1
+          && (
+            request.resource.data.memberIds.size()
+              == resource.data.memberIds.size()
+            || request.resource.data.memberIds.size()
+              == resource.data.memberIds.size() + 1
+          )
         );
 
       allow delete: if isSignedIn()

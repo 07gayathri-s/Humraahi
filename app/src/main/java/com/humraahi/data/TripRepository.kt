@@ -1,6 +1,7 @@
 package com.humraahi.data
 
 import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.ktx.Firebase
 import com.humraahi.model.Trip
 import kotlinx.coroutines.channels.awaitClose
@@ -37,6 +38,13 @@ class TripRepository {
         db.collection("trips")
             .document(trip.id)
             .set(trip.toMap())
+            .await()
+    }
+
+    suspend fun joinTrip(tripId: String, userId: String) {
+        db.collection("trips")
+            .document(tripId)
+            .update("memberIds", FieldValue.arrayUnion(userId))
             .await()
     }
 }
