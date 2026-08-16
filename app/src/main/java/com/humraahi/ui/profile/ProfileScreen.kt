@@ -13,10 +13,25 @@ import androidx.navigation.NavController
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(navController: NavController, viewModel: ProfileViewModel = viewModel()) {
-    val savedName by viewModel.userName.collectAsState()
-    var nameInput by remember(savedName) { mutableStateOf(savedName) }
+    val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var nameInput by remember(uiState.name) { mutableStateOf(uiState.name) }
+
+    LaunchedEffect(uiState.errorMessage, uiState.isSaved) {
+        val message = when {
+            uiState.errorMessage != null -> uiState.errorMessage
+            uiState.isSaved -> "Profile name saved."
+            else -> null
+        }
+
+        message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Profile") },
@@ -46,17 +61,17 @@ fun ProfileScreen(navController: NavController, viewModel: ProfileViewModel = vi
             )
             Button(
                 onClick = { viewModel.saveUserName(nameInput) },
-                enabled = nameInput.isNotBlank(),
+                enabled = nameInput.isNotBlank() && !uiState.isSaving,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save")
-            }
-            if (savedName.isNotBlank()) {
-                Text(
-                    text = "Saved as: $savedName",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                if (uiState.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Save")
+                }
             }
         }
     }
