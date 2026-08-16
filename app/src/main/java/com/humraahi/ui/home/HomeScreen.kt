@@ -8,8 +8,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,8 +31,18 @@ import com.humraahi.navigation.Routes
 @Composable
 fun HomeScreen(navController: NavController, viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsState()
+    val syncError by viewModel.syncError.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(syncError) {
+        syncError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSyncError()
+        }
+    }
 
     Scaffold (
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Humraahi") },

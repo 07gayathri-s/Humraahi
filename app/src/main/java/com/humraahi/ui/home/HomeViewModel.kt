@@ -1,6 +1,7 @@
 package com.humraahi.ui.home
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -13,8 +14,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
-class HomeViewModel : ViewModel() {
-    private val repository = TripRepository()
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository = TripRepository(application)
     private val currentUser = Firebase.auth.currentUser
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -23,7 +24,16 @@ class HomeViewModel : ViewModel() {
     private val _createTripState = MutableStateFlow<CreateTripState>(CreateTripState.Idle)
     val createTripState: StateFlow<CreateTripState> = _createTripState.asStateFlow()
 
+    private val _syncError = MutableStateFlow<String?>(null)
+    val syncError: StateFlow<String?> = _syncError.asStateFlow()
+
     init {
+        viewModelScope.launch {
+            repository.syncErrors.collect { error ->
+                _syncError.value = error
+            }
+        }
+
         val userId = currentUser?.uid
         if (userId == null) {
             _uiState.value = HomeUiState.Error("Sign in again to load your trips.")
@@ -75,6 +85,10 @@ class HomeViewModel : ViewModel() {
 
     fun resetCreateTripState() {
         _createTripState.value = CreateTripState.Idle
+    }
+
+    fun clearSyncError() {
+        _syncError.value = null
     }
 }
 

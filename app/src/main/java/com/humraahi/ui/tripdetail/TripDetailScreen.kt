@@ -1,5 +1,6 @@
 package com.humraahi.ui.tripdetail
 
+import android.app.Application
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,16 +40,17 @@ import kotlinx.coroutines.launch
 @Composable
 fun TripDetailScreen(
     tripId: String,
-    navController: NavController,
-    viewModel: TripDetailViewModel = viewModel(
-        factory = TripDetailViewModel.factory(tripId)
-    )
+    navController: NavController
 ) {
+    val context = LocalContext.current
+    val application = context.applicationContext as Application
+    val viewModel: TripDetailViewModel = viewModel(
+        factory = TripDetailViewModel.factory(application, tripId)
+    )
     val joinState by viewModel.joinState.collectAsState()
     val tabs = listOf("Chat", "Itinerary")
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -132,4 +134,3 @@ fun TripDetailScreen(
         }
     }
 }
-

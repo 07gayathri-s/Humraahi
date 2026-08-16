@@ -1,5 +1,7 @@
 package com.humraahi.ui.tripdetail
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -13,9 +15,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class TripDetailViewModel(
+    application: Application,
     private val tripId: String,
-    private val repository: TripRepository = TripRepository()
-) : ViewModel() {
+    private val repository: TripRepository = TripRepository(application)
+) : AndroidViewModel(application) {
     private val _joinState = MutableStateFlow<JoinTripState>(JoinTripState.Joining)
     val joinState: StateFlow<JoinTripState> = _joinState.asStateFlow()
 
@@ -50,11 +53,14 @@ class TripDetailViewModel(
     }
 
     companion object {
-        fun factory(tripId: String) = object : ViewModelProvider.Factory {
+        fun factory(
+            application: Application,
+            tripId: String
+        ) = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(TripDetailViewModel::class.java))
                 @Suppress("UNCHECKED_CAST")
-                return TripDetailViewModel(tripId) as T
+                return TripDetailViewModel(application, tripId) as T
             }
         }
     }
