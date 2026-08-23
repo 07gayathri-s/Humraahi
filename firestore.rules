@@ -52,7 +52,14 @@ service cloud.firestore {
         allow create: if isTripMember(tripId)
           && request.resource.data.senderId == request.auth.uid;
 
-        allow update, delete: if isTripMember(tripId)
+        allow update: if isTripMember(tripId)
+          && resource.data.senderId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['text'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0;
+
+        allow delete: if isTripMember(tripId)
           && resource.data.senderId == request.auth.uid;
       }
     }

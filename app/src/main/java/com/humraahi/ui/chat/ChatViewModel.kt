@@ -77,6 +77,41 @@ class ChatViewModel(
         }
     }
 
+    fun editMessage(message: ChatMessage, text: String) {
+        val updatedText = text.trim()
+        if (!message.isSentBy(currentUserId)) {
+            _sendError.value = "You can only edit your own messages."
+            return
+        }
+        if (updatedText.isEmpty()) {
+            _sendError.value = "Message cannot be empty."
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.editMessage(tripId, message.id, updatedText)
+            } catch (error: FirebaseFirestoreException) {
+                _sendError.value = error.message ?: "Message could not be edited."
+            }
+        }
+    }
+
+    fun deleteMessage(message: ChatMessage) {
+        if (!message.isSentBy(currentUserId)) {
+            _sendError.value = "You can only delete your own messages."
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repository.deleteMessage(tripId, message.id)
+            } catch (error: FirebaseFirestoreException) {
+                _sendError.value = error.message ?: "Message could not be deleted."
+            }
+        }
+    }
+
     fun clearSendError() {
         _sendError.value = null
     }

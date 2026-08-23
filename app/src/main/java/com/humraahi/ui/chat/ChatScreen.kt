@@ -1,7 +1,9 @@
 package com.humraahi.ui.chat
 
 import android.app.Application
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,6 +30,9 @@ fun ChatScreen(tripId: String) {
     val listState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
     var inputText by remember { mutableStateOf("") }
+    var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var editMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var deleteMessage by remember { mutableStateOf<ChatMessage?>(null) }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
@@ -51,7 +56,12 @@ fun ChatScreen(tripId: String) {
                 items(messages, key = { it.id }) { message ->
                     MessageBubble(
                         message = message,
-                        isSentByMe = message.isSentBy(viewModel.currentUserId)
+                        isSentByMe = message.isSentBy(viewModel.currentUserId),
+                        onLongPress = {
+                            if (message.isSentBy(viewModel.currentUserId)) {
+                                actionMessage = message
+                            }
+                        }
                     )
                 }
             }
@@ -66,10 +76,63 @@ fun ChatScreen(tripId: String) {
             )
         }
     }
+
+    actionMessage?.let { message ->
+        MessageActionsDialog(
+            onDismiss = { actionMessage = null },
+            onEdit = {
+                actionMessage = null
+                editMessage = message
+            },
+            onDelete = {
+                actionMessage = null
+                deleteMessage = message
+            }
+        )
+    }
+
+    editMessage?.let { message ->
+        EditMessageDialog(
+            message = message,
+            onDismiss = { editMessage = null },
+            onSave = { updatedText ->
+                viewModel.editMessage(message, updatedText)
+                editMessage = null
+            }
+        )
+    }
+
+    deleteMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { deleteMessage = null },
+            title = { Text("Delete message?") },
+            text = { Text("This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteMessage(message)
+                        deleteMessage = null
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteMessage = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(message: ChatMessage, isSentByMe: Boolean) {
+private fun MessageBubble(
+    message: ChatMessage,
+    isSentByMe: Boolean,
+    onLongPress: () -> Unit
+) {
     val bubbleColor = if (isSentByMe)
         MaterialTheme.colorScheme.primary
     else
@@ -102,11 +165,78 @@ private fun MessageBubble(message: ChatMessage, isSentByMe: Boolean) {
             modifier = Modifier
                 .widthIn(max = 280.dp)
                 .background(color = bubbleColor, shape = bubbleShape)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = onLongPress
+                )
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Text(text = message.text, color = textColor, style = MaterialTheme.typography.bodyMedium)
         }
     }
+}
+
+@Composable
+private fun MessageActionsDialog(
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Message options") },
+        text = {
+            Column {
+                TextButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
+                    Text("Edit")
+                }
+                TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+                    Text("Delete")
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun EditMessageDialog(
+    message: ChatMessage,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var text by remember(message.id) { mutableStateOf(message.text) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit message") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 5
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(text) },
+                enabled = text.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

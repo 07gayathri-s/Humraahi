@@ -80,4 +80,22 @@ class ChatRepository(context: Context) {
             .set(message.toMap())
             .await()
     }
+
+    suspend fun editMessage(tripId: String, messageId: String, text: String) {
+        db.collection("trips")
+            .document(tripId)
+            .collection("messages")
+            .document(messageId)
+            .update("text", text)
+            .await()
+    }
+
+    suspend fun deleteMessage(tripId: String, messageId: String) {
+        db.collection("trips")
+            .document(tripId)
+            .collection("messages")
+            .document(messageId)
+            .delete()
+            .await()
+    }
 }
