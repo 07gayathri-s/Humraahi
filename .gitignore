@@ -1,6 +1,7 @@
 *.iml
 .gradle
 .idea/
+.firebase/
 .kotlin/
 /local.properties
 .DS_Store

@@ -9,6 +9,7 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.ktx.Firebase
 import com.humraahi.data.TripRepository
+import com.humraahi.model.Trip
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,11 @@ class TripDetailViewModel(
 ) : AndroidViewModel(application) {
     private val _joinState = MutableStateFlow<JoinTripState>(JoinTripState.Joining)
     val joinState: StateFlow<JoinTripState> = _joinState.asStateFlow()
+    private val _trip = MutableStateFlow<Trip?>(null)
+    val trip: StateFlow<Trip?> = _trip.asStateFlow()
+    private val _memberError = MutableStateFlow<String?>(null)
+    val memberError: StateFlow<String?> = _memberError.asStateFlow()
+    val currentUserId: String = Firebase.auth.currentUser?.uid.orEmpty()
 
     init {
         joinTrip()
@@ -31,8 +37,8 @@ class TripDetailViewModel(
     }
 
     private fun joinTrip() {
-        val userId = Firebase.auth.currentUser?.uid
-        if (userId == null) {
+        val user = Firebase.auth.currentUser
+        if (user == null) {
             _joinState.value = JoinTripState.Error(
                 "Sign in again before opening this trip."
             )
@@ -42,14 +48,43 @@ class TripDetailViewModel(
         viewModelScope.launch {
             _joinState.value = JoinTripState.Joining
             try {
-                repository.joinTrip(tripId, userId)
+                repository.joinTrip(
+                    tripId = tripId,
+                    userId = user.uid,
+                    userName = user.displayName ?: user.email ?: "Traveller"
+                )
                 _joinState.value = JoinTripState.Ready
+                observeTrip()
             } catch (error: FirebaseFirestoreException) {
                 _joinState.value = JoinTripState.Error(
                     error.message ?: "This trip could not be opened."
                 )
             }
         }
+    }
+
+    private fun observeTrip() {
+        viewModelScope.launch {
+            try {
+                repository.observeTrip(tripId).collect { _trip.value = it }
+            } catch (error: Exception) {
+                _memberError.value = error.message ?: "Members could not be loaded."
+            }
+        }
+    }
+
+    fun removeMember(memberId: String) {
+        viewModelScope.launch {
+            try {
+                repository.removeMember(tripId, memberId)
+            } catch (error: Exception) {
+                _memberError.value = error.message ?: "Member could not be removed."
+            }
+        }
+    }
+
+    fun clearMemberError() {
+        _memberError.value = null
     }
 
     companion object {

@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.humraahi",
+      "sha256_cert_fingerprints": [
+        "B1:24:90:68:62:95:08:AE:99:76:80:FD:7D:BC:22:65:58:6E:81:06:E9:B2:64:DA:25:E1:CA:D4:BA:74:94:E7"
+      ]
+    }
+  }
+]

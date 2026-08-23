@@ -81,9 +81,54 @@ class TripRepository(context: Context) {
     }
 
     suspend fun joinTrip(tripId: String, userId: String) {
+        joinTrip(tripId, userId, "Traveller")
+    }
+
+    suspend fun joinTrip(tripId: String, userId: String, userName: String) {
         db.collection("trips")
             .document(tripId)
-            .update("memberIds", FieldValue.arrayUnion(userId))
+            .update(
+                mapOf(
+                    "memberIds" to FieldValue.arrayUnion(userId),
+                    "memberNames.$userId" to userName
+                )
+            )
             .await()
+    }
+
+    fun observeTrip(tripId: String): Flow<Trip?> = callbackFlow {
+        val listener = db.collection("trips")
+            .document(tripId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+
+                trySend(snapshot?.data?.let { Trip.fromMap(tripId, it) })
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun removeMember(tripId: String, memberId: String) {
+        val tripRef = db.collection("trips").document(tripId)
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(tripRef)
+            val trip = snapshot.data?.let { Trip.fromMap(tripId, it) }
+                ?: error("Trip not found.")
+
+            require(memberId != trip.createdBy) {
+                "The trip owner cannot be removed."
+            }
+
+            transaction.update(
+                tripRef,
+                mapOf(
+                    "memberIds" to trip.memberIds.filterNot { it == memberId },
+                    "memberNames" to (trip.memberNames - memberId)
+                )
+            )
+        }.await()
     }
 }

@@ -43,7 +43,10 @@ fun AppNavGraph(navController: NavHostController) {
         composable(
             route = Routes.TRIP_DETAIL,
             arguments = listOf(navArgument("tripId") { type = NavType.StringType }),
-            deepLinks = listOf(navDeepLink { uriPattern = "humraahi://trip/{tripId}" })
+            deepLinks = listOf(
+                navDeepLink { uriPattern = "https://humraahi-ed56b.web.app/trip/{tripId}" },
+                navDeepLink { uriPattern = "humraahi://trip/{tripId}" }
+            )
         ) { backStackEntry ->
             val tripId = backStackEntry.arguments?.getString("tripId") ?: return@composable
             TripDetailScreen(tripId = tripId, navController)

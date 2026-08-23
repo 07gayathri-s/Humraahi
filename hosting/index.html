@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open trip in Humraahi</title>
+  <style>
+    body {
+      align-items: center;
+      background: #f9f9f9;
+      color: #1a1a1a;
+      display: flex;
+      font-family: system-ui, sans-serif;
+      justify-content: center;
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    main {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 16px;
+      max-width: 420px;
+      padding: 32px;
+      text-align: center;
+    }
+
+    a {
+      background: #315f72;
+      border-radius: 10px;
+      color: white;
+      display: inline-block;
+      margin-top: 16px;
+      padding: 12px 20px;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Humraahi trip invitation</h1>
+    <p>Open this shared trip in the Humraahi Android app.</p>
+    <a id="open-app" href="#">Open in Humraahi</a>
+  </main>
+  <script>
+    const match = window.location.pathname.match(/^\/trip\/([^/]+)$/);
+    const button = document.getElementById("open-app");
+
+    if (match) {
+      button.href = `humraahi://trip/${encodeURIComponent(match[1])}`;
+    } else {
+      button.hidden = true;
+    }
+  </script>
+</body>
+</html>

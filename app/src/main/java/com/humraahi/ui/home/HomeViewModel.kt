@@ -67,6 +67,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             endDate = endDate.trim(),
             members = listOfNotNull(user.displayName ?: user.email),
             memberIds = listOf(user.uid),
+            memberNames = mapOf(
+                user.uid to (user.displayName ?: user.email ?: "Traveller")
+            ),
             createdBy = user.uid
         )
 

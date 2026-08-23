@@ -8,6 +8,7 @@ data class Trip(
     val endDate: String = "",
     val members: List<String> = emptyList(),
     val memberIds: List<String> = emptyList(),
+    val memberNames: Map<String, String> = emptyMap(),
     val createdBy: String = ""
 ) {
     fun toMap(): Map<String, Any> = mapOf(
@@ -16,6 +17,7 @@ data class Trip(
         "endDate" to endDate,
         "members" to members,
         "memberIds" to memberIds,
+        "memberNames" to memberNames,
         "createdBy" to createdBy
     )
 
@@ -30,6 +32,12 @@ data class Trip(
                 .orEmpty(),
             memberIds = (map["memberIds"] as? List<*>)
                 ?.filterIsInstance<String>()
+                .orEmpty(),
+            memberNames = (map["memberNames"] as? Map<*, *>)
+                ?.mapNotNull { (id, name) ->
+                    if (id is String && name is String) id to name else null
+                }
+                ?.toMap()
                 .orEmpty(),
             createdBy = map["createdBy"] as? String ?: ""
         )

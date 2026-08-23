@@ -27,6 +27,17 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="humraahi" android:host="trip" />
             </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="humraahi-ed56b.web.app"
+                    android:pathPrefix="/trip/" />
+            </intent-filter>
         </activity>
     </application>
 

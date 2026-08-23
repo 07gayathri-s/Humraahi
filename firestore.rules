@@ -27,7 +27,7 @@ service cloud.firestore {
         || (
           isSignedIn()
           && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['memberIds'])
+            .hasOnly(['memberIds', 'memberNames'])
           && request.resource.data.memberIds.hasAll(resource.data.memberIds)
           && request.resource.data.memberIds.hasOnly(
             resource.data.memberIds.concat([request.auth.uid])
@@ -38,6 +38,9 @@ service cloud.firestore {
             || request.resource.data.memberIds.size()
               == resource.data.memberIds.size() + 1
           )
+          && request.resource.data.get('memberNames', {})
+            .diff(resource.data.get('memberNames', {}))
+            .affectedKeys().hasOnly([request.auth.uid])
         );
 
       allow delete: if isSignedIn()
