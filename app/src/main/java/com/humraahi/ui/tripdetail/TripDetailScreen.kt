@@ -24,6 +24,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -41,6 +42,7 @@ import androidx.navigation.NavController
 import com.humraahi.navigation.Routes
 import com.humraahi.ui.chat.ChatScreen
 import com.humraahi.ui.itinerary.ItineraryScreen
+import com.humraahi.ui.theme.humraahiTopAppBarColors
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,6 +87,7 @@ fun TripDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Trip Detail") },
+                colors = humraahiTopAppBarColors(),
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -109,7 +112,11 @@ fun TripDetailScreen(
             }
             JoinTripState.Ready -> {
                 Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                    TabRow(selectedTabIndex = pagerState.currentPage) {
+                    TabRow(
+                        selectedTabIndex = pagerState.currentPage,
+                        containerColor = MaterialTheme.colorScheme.background,
+                        contentColor = MaterialTheme.colorScheme.onBackground
+                    ) {
                         tabs.forEachIndexed { index, title ->
                             Tab(
                                 selected = pagerState.currentPage == index,

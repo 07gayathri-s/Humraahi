@@ -45,7 +45,10 @@ fun ChatScreen(tripId: String) {
         }
     }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             LazyColumn(
                 state = listState,
@@ -241,32 +244,41 @@ private fun EditMessageDialog(
 
 @Composable
 private fun MessageInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Unit) {
-    Surface(shadowElevation = 8.dp) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = onTextChange,
-                placeholder = { Text("Type a message…") },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(24.dp),
-                maxLines = 4
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
             )
-            IconButton(
-                onClick = onSend,
-                enabled = text.isNotBlank()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    tint = if (text.isNotBlank()) MaterialTheme.colorScheme.primary
-                           else MaterialTheme.colorScheme.outline
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = onTextChange,
+                    placeholder = { Text("Type a message…") },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(24.dp),
+                    maxLines = 4
                 )
+                IconButton(
+                    onClick = onSend,
+                    enabled = text.isNotBlank()
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        tint = if (text.isNotBlank()) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.outline
+                    )
+                }
             }
         }
     }

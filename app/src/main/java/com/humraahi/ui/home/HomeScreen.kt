@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.navigation.NavController
 import com.humraahi.navigation.Routes
+import com.humraahi.ui.theme.humraahiTopAppBarColors
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,6 +47,7 @@ fun HomeScreen(navController: NavController, viewModel: HomeViewModel) {
         topBar = {
             TopAppBar(
                 title = { Text("Humraahi") },
+                colors = humraahiTopAppBarColors(),
                 actions = {
                     IconButton(onClick = { navController.navigate(Routes.PROFILE) }) {
                         Icon(Icons.Default.Person, contentDescription = "Profile")

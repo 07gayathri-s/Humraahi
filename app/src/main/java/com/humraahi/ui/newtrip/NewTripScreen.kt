@@ -13,6 +13,7 @@ import androidx.navigation.NavController
 import com.humraahi.ui.home.CreateTripState
 import com.humraahi.ui.home.HomeViewModel
 import com.humraahi.util.DateFormatter
+import com.humraahi.ui.theme.humraahiTopAppBarColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +54,7 @@ fun NewTripScreen(navController: NavController, viewModel: HomeViewModel) {
         topBar = {
             TopAppBar(
                 title = { Text("New Trip") },
+                colors = humraahiTopAppBarColors(),
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
