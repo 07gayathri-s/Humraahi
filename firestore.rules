@@ -46,6 +46,15 @@ service cloud.firestore {
       allow delete: if isSignedIn()
         && resource.data.createdBy == request.auth.uid;
 
+      match /itineraries/{itineraryId} {
+        allow read: if itineraryId == 'current' && isTripMember(tripId);
+
+        allow create, update: if itineraryId == 'current'
+          && isTripMember(tripId)
+          && request.resource.data.keys().hasOnly(['days'])
+          && request.resource.data.days is list;
+      }
+
       match /messages/{messageId} {
         allow read: if isTripMember(tripId);
 

@@ -135,7 +135,7 @@ fun TripDetailScreen(
                     ) { page ->
                         when (page) {
                             0 -> ChatScreen(tripId = tripId)
-                            1 -> ItineraryScreen()
+                            1 -> ItineraryScreen(tripId = tripId)
                         }
                     }
                 }
