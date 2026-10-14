@@ -15,8 +15,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -31,12 +35,43 @@ fun ItineraryScreen(tripId: String) {
         factory = ItineraryViewModel.factory(tripId)
     )
     val uiState by viewModel.uiState.collectAsState()
+    val saveState by viewModel.saveState.collectAsState()
+    var showAddActivity by rememberSaveable(tripId) { mutableStateOf(false) }
 
-    ItineraryContent(uiState = uiState, onRetry = viewModel::retry)
+    LaunchedEffect(saveState) {
+        if (saveState is ItinerarySaveState.Success) {
+            showAddActivity = false
+            viewModel.resetSaveState()
+        }
+    }
+
+    ItineraryContent(
+        uiState = uiState,
+        onRetry = viewModel::retry,
+        onAddActivity = {
+            viewModel.resetSaveState()
+            showAddActivity = true
+        }
+    )
+
+    if (showAddActivity) {
+        AddActivityDialog(
+            saveState = saveState,
+            onDismiss = {
+                showAddActivity = false
+                viewModel.resetSaveState()
+            },
+            onSave = viewModel::saveActivity
+        )
+    }
 }
 
 @Composable
-internal fun ItineraryContent(uiState: ItineraryUiState, onRetry: () -> Unit) {
+internal fun ItineraryContent(
+    uiState: ItineraryUiState,
+    onRetry: () -> Unit,
+    onAddActivity: () -> Unit
+) {
     when (uiState) {
         ItineraryUiState.Loading -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -44,14 +79,28 @@ internal fun ItineraryContent(uiState: ItineraryUiState, onRetry: () -> Unit) {
             }
         }
         ItineraryUiState.Empty -> {
-            Box(
+            Column(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
-                contentAlignment = Alignment.Center
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("No itinerary yet. Your trip plan will appear here once it is saved.")
+                Text("No itinerary yet. Add your first activity to start planning.")
+                Button(onClick = onAddActivity) {
+                    Text("Add activity")
+                }
             }
         }
-        is ItineraryUiState.Success -> ItineraryDayList(uiState.itinerary)
+        is ItineraryUiState.Success -> {
+            Column(modifier = Modifier.fillMaxSize()) {
+                ItineraryDayList(uiState.itinerary, modifier = Modifier.weight(1f))
+                Button(
+                    onClick = onAddActivity,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                ) {
+                    Text("Add activity")
+                }
+            }
+        }
         is ItineraryUiState.Error -> {
             Column(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -68,9 +117,9 @@ internal fun ItineraryContent(uiState: ItineraryUiState, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun ItineraryDayList(itinerary: Itinerary) {
+private fun ItineraryDayList(itinerary: Itinerary, modifier: Modifier = Modifier) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

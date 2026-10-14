@@ -3,9 +3,91 @@ package com.humraahi.model
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ItineraryTest {
+    @Test
+    fun addingFirstActivityCreatesDayWithoutChangingOriginal() {
+        val itinerary = Itinerary(tripId = "trip-1")
+        val activity = ItineraryActivity(id = "activity-1", title = "Beach visit")
+
+        val updated = itinerary.withActivity(1, activity)
+
+        assertEquals("trip-1", updated.tripId)
+        assertEquals(1, updated.days.single().dayNumber)
+        assertEquals(listOf(activity), updated.days.single().activities)
+        assertEquals(emptyList<ItineraryDay>(), itinerary.days)
+    }
+
+    @Test
+    fun addingToExistingDayPreservesDetailsAndOtherDays() {
+        val firstActivity = ItineraryActivity(id = "activity-1", title = "Check-in")
+        val newActivity = ItineraryActivity(id = "activity-2", title = "Beach visit")
+        val firstDay = ItineraryDay(
+            id = "day-1",
+            dayNumber = 1,
+            date = "2026-10-20",
+            title = "Arrival",
+            activities = listOf(firstActivity)
+        )
+        val secondDay = ItineraryDay(id = "day-2", dayNumber = 2, title = "Explore")
+        val itinerary = Itinerary(tripId = "trip-1", days = listOf(firstDay, secondDay))
+
+        val updated = itinerary.withActivity(1, newActivity)
+
+        assertEquals(
+            firstDay.copy(activities = listOf(firstActivity, newActivity)),
+            updated.days.first()
+        )
+        assertEquals(secondDay, updated.days.last())
+        assertEquals(listOf(firstActivity), itinerary.days.first().activities)
+    }
+
+    @Test
+    fun addingNewDayPlacesItInDayNumberOrder() {
+        val firstDay = ItineraryDay(id = "day-1", dayNumber = 1)
+        val thirdDay = ItineraryDay(id = "day-3", dayNumber = 3)
+        val itinerary = Itinerary(tripId = "trip-1", days = listOf(firstDay, thirdDay))
+        val activity = ItineraryActivity(id = "activity-1", title = "Explore")
+
+        val updated = itinerary.withActivity(2, activity)
+
+        assertEquals(listOf(1, 2, 3), updated.days.map { it.dayNumber })
+        assertEquals(firstDay, updated.days.first())
+        assertEquals(thirdDay, updated.days.last())
+        assertEquals(listOf(activity), updated.days[1].activities)
+    }
+
+    @Test
+    fun addingMultipleActivitiesToSameDayDoesNotCreateDuplicateDays() {
+        val first = ItineraryActivity(id = "activity-1", title = "Check-in")
+        val second = ItineraryActivity(id = "activity-2", title = "Beach visit")
+
+        val updated = Itinerary(tripId = "trip-1")
+            .withActivity(1, first)
+            .withActivity(1, second)
+
+        assertEquals(1, updated.days.size)
+        assertEquals(listOf(first, second), updated.days.single().activities)
+    }
+
+    @Test
+    fun addingActivityRejectsInvalidDayAndBlankTitle() {
+        val itinerary = Itinerary(tripId = "trip-1")
+        val activity = ItineraryActivity(title = "Explore")
+
+        assertThrows(IllegalArgumentException::class.java) {
+            itinerary.withActivity(0, activity)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            itinerary.withActivity(-1, activity)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            itinerary.withActivity(1, ItineraryActivity(title = " "))
+        }
+    }
+
     @Test
     fun mapRoundTripPreservesDayAndActivityOrder() {
         val itinerary = Itinerary(

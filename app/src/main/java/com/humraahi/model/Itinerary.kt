@@ -6,6 +6,26 @@ data class Itinerary(
     val tripId: String,
     val days: List<ItineraryDay> = emptyList()
 ) {
+    fun withActivity(dayNumber: Int, activity: ItineraryActivity): Itinerary {
+        require(dayNumber > 0) { "Day number must be at least 1." }
+        require(activity.title.isNotBlank()) { "Activity name cannot be empty." }
+
+        val existingDay = days.firstOrNull { it.dayNumber == dayNumber }
+        val updatedDays = if (existingDay == null) {
+            (days + ItineraryDay(dayNumber = dayNumber, activities = listOf(activity)))
+                .sortedBy { it.dayNumber }
+        } else {
+            days.map { day ->
+                if (day.id == existingDay.id) {
+                    day.copy(activities = day.activities + activity)
+                } else {
+                    day
+                }
+            }
+        }
+        return copy(days = updatedDays)
+    }
+
     fun toMap(): Map<String, Any> = mapOf(
         "days" to days.map(ItineraryDay::toMap)
     )

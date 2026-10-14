@@ -22,10 +22,18 @@ class ItineraryScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private fun show(state: ItineraryUiState, onRetry: () -> Unit = {}) {
+    private fun show(
+        state: ItineraryUiState,
+        onRetry: () -> Unit = {},
+        onAddActivity: () -> Unit = {}
+    ) {
         composeRule.setContent {
             MaterialTheme {
-                ItineraryContent(uiState = state, onRetry = onRetry)
+                ItineraryContent(
+                    uiState = state,
+                    onRetry = onRetry,
+                    onAddActivity = onAddActivity
+                )
             }
         }
     }
@@ -44,8 +52,18 @@ class ItineraryScreenTest {
         show(ItineraryUiState.Empty)
 
         composeRule.onNodeWithText(
-            "No itinerary yet. Your trip plan will appear here once it is saved."
+            "No itinerary yet. Add your first activity to start planning."
         ).assertIsDisplayed()
+    }
+
+    @Test
+    fun emptyPlanCanStartAddingActivity() {
+        var additions = 0
+        show(ItineraryUiState.Empty, onAddActivity = { additions++ })
+
+        composeRule.onNodeWithText("Add activity").performClick()
+
+        composeRule.runOnIdle { assertEquals(1, additions) }
     }
 
     @Test

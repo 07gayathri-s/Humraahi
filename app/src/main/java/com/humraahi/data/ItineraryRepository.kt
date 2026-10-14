@@ -3,6 +3,7 @@ package com.humraahi.data
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.humraahi.model.Itinerary
+import com.humraahi.model.ItineraryActivity
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -34,6 +35,16 @@ class ItineraryRepository {
         itineraryDocument(itinerary.tripId)
             .set(itinerary.toMap())
             .await()
+    }
+
+    suspend fun addActivity(tripId: String, dayNumber: Int, activity: ItineraryActivity) {
+        val document = itineraryDocument(tripId)
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(document)
+            val itinerary = snapshot.data?.let { Itinerary.fromMap(tripId, it) }
+                ?: Itinerary(tripId = tripId)
+            transaction.set(document, itinerary.withActivity(dayNumber, activity).toMap())
+        }.await()
     }
 
     private fun itineraryDocument(tripId: String) =
