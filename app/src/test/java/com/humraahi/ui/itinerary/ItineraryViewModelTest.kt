@@ -49,9 +49,10 @@ class ItineraryViewModelTest {
     private fun createViewModel(
         updates: Flow<Itinerary?>,
         updateActivity: suspend (ActivityEditTarget, String, ItineraryActivity) -> Unit = { _, _, _ -> },
+        removeActivity: suspend (ActivityEditTarget) -> Unit = {},
         addActivity: suspend (String, ItineraryActivity) -> Unit = { _, _ -> }
     ): ItineraryViewModel =
-        ItineraryViewModel(updates, addActivity, updateActivity)
+        ItineraryViewModel(updates, addActivity, updateActivity, removeActivity)
             .also { viewModelStore.put("itinerary", it) }
 
     @Test
@@ -428,5 +429,139 @@ class ItineraryViewModelTest {
             ItinerarySaveState.Error("Activity changed; reopen it."),
             viewModel.saveState.value
         )
+    }
+
+    private val deleteTarget = ActivityEditTarget(
+        "day-1", "2026-10-20", ItineraryActivity(id = "activity-1", title = "Beach")
+    )
+
+    @Test
+    fun deletionPassesOriginalSnapshotAndFinalDeletionShowsEmptyThroughObservation() = runTest(dispatcher) {
+        val updates = MutableStateFlow<Itinerary?>(
+            itinerary.copy(days = listOf(itinerary.days.single().copy(
+                activities = listOf(deleteTarget.activity)
+            )))
+        )
+        var deleted: ActivityEditTarget? = null
+        val viewModel = createViewModel(
+            updates,
+            removeActivity = { target ->
+                deleted = target
+                updates.value = updates.value!!.withoutActivity(target.dayId, target.activity)
+            },
+            addActivity = { _, _ -> error("Deletion must not add an activity") },
+            updateActivity = { _, _, _ -> error("Deletion must not edit an activity") }
+        )
+        runCurrent()
+
+        viewModel.deleteActivity(deleteTarget)
+        assertEquals(ItinerarySaveState.Saving, viewModel.saveState.value)
+        runCurrent()
+
+        assertEquals(deleteTarget, deleted)
+        assertEquals(ItinerarySaveState.Success, viewModel.saveState.value)
+        assertEquals(ItineraryUiState.Empty, viewModel.uiState.value)
+        viewModel.resetSaveState()
+        assertEquals(ItinerarySaveState.Idle, viewModel.saveState.value)
+    }
+
+    @Test
+    fun deletionConflictIsShownAndCanBeRetried() = runTest(dispatcher) {
+        var attempts = 0
+        val viewModel = createViewModel(flowOf(itinerary), removeActivity = {
+            attempts++
+            if (attempts == 1) throw IllegalStateException("Activity changed; reopen it.")
+        })
+
+        viewModel.deleteActivity(deleteTarget)
+        runCurrent()
+        assertEquals(
+            ItinerarySaveState.Error("Activity changed; reopen it."),
+            viewModel.saveState.value
+        )
+        assertEquals(ItineraryUiState.Success(itinerary), viewModel.uiState.value)
+
+        viewModel.deleteActivity(deleteTarget)
+        runCurrent()
+        assertEquals(2, attempts)
+        assertEquals(ItinerarySaveState.Success, viewModel.saveState.value)
+    }
+
+    @Test
+    fun deletionFailureWithoutMessageUsesDeleteSpecificError() = runTest(dispatcher) {
+        val viewModel = createViewModel(flowOf(itinerary), removeActivity = {
+            throw IllegalStateException()
+        })
+
+        viewModel.deleteActivity(deleteTarget)
+        runCurrent()
+
+        assertEquals(
+            ItinerarySaveState.Error("Activity could not be deleted. Please try again."),
+            viewModel.saveState.value
+        )
+    }
+
+    @Test
+    fun pendingDeletionBlocksDuplicateDeletesSavesAndReset() = runTest(dispatcher) {
+        var deletions = 0
+        val completion = CompletableDeferred<Unit>()
+        val viewModel = createViewModel(
+            flowOf(itinerary),
+            removeActivity = { deletions++; completion.await() },
+            addActivity = { _, _ -> error("Save must be blocked during deletion") }
+        )
+
+        viewModel.deleteActivity(deleteTarget)
+        runCurrent()
+        viewModel.deleteActivity(deleteTarget)
+        viewModel.saveActivity("2026-10-20", "Explore", "", "", "")
+        viewModel.resetSaveState()
+        runCurrent()
+
+        assertEquals(1, deletions)
+        assertEquals(ItinerarySaveState.Saving, viewModel.saveState.value)
+        completion.complete(Unit)
+        runCurrent()
+        assertEquals(ItinerarySaveState.Success, viewModel.saveState.value)
+    }
+
+    @Test
+    fun pendingSaveBlocksDeletion() = runTest(dispatcher) {
+        val completion = CompletableDeferred<Unit>()
+        val viewModel = createViewModel(
+            flowOf(itinerary),
+            removeActivity = { error("Deletion must be blocked during save") },
+            addActivity = { _, _ -> completion.await() }
+        )
+
+        viewModel.saveActivity("2026-10-20", "Explore", "", "", "")
+        runCurrent()
+        viewModel.deleteActivity(deleteTarget)
+        runCurrent()
+        assertEquals(ItinerarySaveState.Saving, viewModel.saveState.value)
+        completion.complete(Unit)
+        runCurrent()
+        assertEquals(ItinerarySaveState.Success, viewModel.saveState.value)
+    }
+
+    @Test
+    fun clearingViewModelCancelsDeletionWithoutReportingAnError() = runTest(dispatcher) {
+        var cancelled = false
+        val viewModel = createViewModel(flowOf(itinerary), removeActivity = {
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled = true
+            }
+        })
+        viewModel.deleteActivity(deleteTarget)
+        runCurrent()
+
+        viewModelStore.clear()
+        runCurrent()
+
+        assertEquals(true, cancelled)
+        assertEquals(ItinerarySaveState.Saving, viewModel.saveState.value)
     }
 }

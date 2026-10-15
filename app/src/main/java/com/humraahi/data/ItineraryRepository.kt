@@ -71,6 +71,23 @@ class ItineraryRepository {
         }.await()
     }
 
+    suspend fun deleteActivity(
+        tripId: String,
+        sourceDayId: String,
+        originalActivity: ItineraryActivity
+    ) {
+        val document = itineraryDocument(tripId)
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(document)
+            val itinerary = snapshot.data?.let { Itinerary.fromMap(tripId, it) }
+                ?: error("This itinerary no longer exists. Close and reopen it.")
+            transaction.set(
+                document,
+                itinerary.withoutActivity(sourceDayId, originalActivity).toMap()
+            )
+        }.await()
+    }
+
     private fun readTripDates(transaction: Transaction, tripId: String): TripDateRange {
         val snapshot = transaction.get(db.collection("trips").document(tripId))
         val trip = snapshot.data?.let { Trip.fromMap(tripId, it) }

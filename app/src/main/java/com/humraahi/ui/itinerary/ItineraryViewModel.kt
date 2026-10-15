@@ -20,7 +20,8 @@ import kotlinx.coroutines.launch
 class ItineraryViewModel(
     private val itineraryUpdates: Flow<Itinerary?>,
     private val addActivity: suspend (String, ItineraryActivity) -> Unit,
-    private val updateActivity: suspend (ActivityEditTarget, String, ItineraryActivity) -> Unit
+    private val updateActivity: suspend (ActivityEditTarget, String, ItineraryActivity) -> Unit,
+    private val removeActivity: suspend (ActivityEditTarget) -> Unit
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<ItineraryUiState>(ItineraryUiState.Loading)
     val uiState: StateFlow<ItineraryUiState> = _uiState.asStateFlow()
@@ -77,20 +78,33 @@ class ItineraryViewModel(
             location = details.location,
             notes = details.notes
         ) ?: details
+        performMutation("Activity could not be saved. Please try again.") {
+            if (editTarget == null) {
+                addActivity(date, activity)
+            } else {
+                updateActivity(editTarget, date, activity)
+            }
+        }
+    }
+
+    fun deleteActivity(target: ActivityEditTarget) {
+        if (_saveState.value is ItinerarySaveState.Saving) return
+        performMutation("Activity could not be deleted. Please try again.") {
+            removeActivity(target)
+        }
+    }
+
+    private fun performMutation(failureMessage: String, action: suspend () -> Unit) {
         _saveState.value = ItinerarySaveState.Saving
         viewModelScope.launch {
             try {
-                if (editTarget == null) {
-                    addActivity(date, activity)
-                } else {
-                    updateActivity(editTarget, date, activity)
-                }
+                action()
                 _saveState.value = ItinerarySaveState.Success
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 _saveState.value = ItinerarySaveState.Error(
-                    error.message ?: "Activity could not be saved. Please try again."
+                    error.message ?: failureMessage
                 )
             }
         }
@@ -140,6 +154,9 @@ class ItineraryViewModel(
                         repository.updateActivity(
                             tripId, target.dayId, target.activity, date, activity
                         )
+                    },
+                    removeActivity = { target ->
+                        repository.deleteActivity(tripId, target.dayId, target.activity)
                     }
                 ) as T
             }

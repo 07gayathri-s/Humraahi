@@ -47,13 +47,7 @@ data class Itinerary(
         require(dayNumber > 0) { "Day number must be at least 1." }
         require(activity.title.isNotBlank()) { "Activity name cannot be empty." }
         require(activity.id == originalActivity.id) { "An edit must preserve the activity ID." }
-        val sourceDay = days.firstOrNull { it.id == sourceDayId }
-            ?: error("This day no longer exists. Close and reopen the activity.")
-        val current = sourceDay.activities.firstOrNull { it.id == originalActivity.id }
-            ?: error("This activity no longer exists on this day. Close and reopen it.")
-        check(current == originalActivity) {
-            "This activity was changed by another member. Close and reopen it before editing."
-        }
+        val sourceDay = requireUnchangedActivity(sourceDayId, originalActivity)
         val destination = days.firstOrNull {
             it.date == date || (it.date == null && it.dayNumber == dayNumber)
         }
@@ -74,6 +68,35 @@ data class Itinerary(
             } else day
         })
         return withoutOriginal.withActivity(dayNumber, activity, date)
+    }
+
+    fun withoutActivity(
+        sourceDayId: String,
+        originalActivity: ItineraryActivity
+    ): Itinerary {
+        val sourceDay = requireUnchangedActivity(sourceDayId, originalActivity)
+        val remaining = sourceDay.activities.filterNot { it.id == originalActivity.id }
+        return copy(days = days.mapNotNull { day ->
+            when {
+                day.id != sourceDay.id -> day
+                remaining.isEmpty() -> null
+                else -> day.copy(activities = remaining)
+            }
+        })
+    }
+
+    private fun requireUnchangedActivity(
+        sourceDayId: String,
+        originalActivity: ItineraryActivity
+    ): ItineraryDay {
+        val sourceDay = days.firstOrNull { it.id == sourceDayId }
+            ?: error("This day no longer exists. Close and reopen the activity.")
+        val current = sourceDay.activities.firstOrNull { it.id == originalActivity.id }
+            ?: error("This activity no longer exists on this day. Close and reopen it.")
+        check(current == originalActivity) {
+            "This activity was changed by another member. Close and reopen it before continuing."
+        }
+        return sourceDay
     }
 
     fun toMap(): Map<String, Any> = mapOf(

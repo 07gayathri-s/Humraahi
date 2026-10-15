@@ -4,16 +4,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -65,11 +68,15 @@ fun ItineraryScreen(trip: Trip) {
     var editTarget by rememberSaveable(trip.id, stateSaver = ActivityEditTargetSaver) {
         mutableStateOf<ActivityEditTarget?>(null)
     }
+    var deleteTarget by rememberSaveable(trip.id, stateSaver = ActivityEditTargetSaver) {
+        mutableStateOf<ActivityEditTarget?>(null)
+    }
 
     LaunchedEffect(saveState) {
         if (saveState is ItinerarySaveState.Success) {
             showActivityDialog = false
             editTarget = null
+            deleteTarget = null
             viewModel.resetSaveState()
         }
     }
@@ -77,6 +84,7 @@ fun ItineraryScreen(trip: Trip) {
     ItineraryContent(
         uiState = uiState,
         dateRange = dateRange,
+        actionsEnabled = saveState !is ItinerarySaveState.Saving,
         onRetry = viewModel::retry,
         onAddActivity = {
             viewModel.resetSaveState()
@@ -87,6 +95,10 @@ fun ItineraryScreen(trip: Trip) {
             viewModel.resetSaveState()
             editTarget = target
             showActivityDialog = true
+        },
+        onDeleteActivity = { target ->
+            viewModel.resetSaveState()
+            deleteTarget = target
         }
     )
 
@@ -105,6 +117,56 @@ fun ItineraryScreen(trip: Trip) {
             }
         )
     }
+
+    deleteTarget?.let { target ->
+        DeleteActivityDialog(
+            activity = target.activity,
+            saveState = saveState,
+            onDismiss = {
+                deleteTarget = null
+                viewModel.resetSaveState()
+            },
+            onConfirm = { viewModel.deleteActivity(target) }
+        )
+    }
+}
+
+@Composable
+internal fun DeleteActivityDialog(
+    activity: ItineraryActivity,
+    saveState: ItinerarySaveState,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val isDeleting = saveState is ItinerarySaveState.Saving
+    AlertDialog(
+        onDismissRequest = { if (!isDeleting) onDismiss() },
+        title = { Text("Delete activity?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Delete \"${activity.title}\" for everyone? This cannot be undone. " +
+                        "If this is the last activity on its date, that date section will also be removed."
+                )
+                if (saveState is ItinerarySaveState.Error) {
+                    Text(saveState.message, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = !isDeleting) {
+                Text(
+                    if (isDeleting) "Deleting..." else "Delete",
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isDeleting) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
@@ -113,7 +175,9 @@ internal fun ItineraryContent(
     dateRange: TripDateRange,
     onRetry: () -> Unit,
     onAddActivity: () -> Unit,
-    onEditActivity: (ActivityEditTarget) -> Unit
+    onEditActivity: (ActivityEditTarget) -> Unit,
+    onDeleteActivity: (ActivityEditTarget) -> Unit,
+    actionsEnabled: Boolean = true
 ) {
     when (uiState) {
         ItineraryUiState.Loading -> {
@@ -128,7 +192,7 @@ internal fun ItineraryContent(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text("No itinerary yet. Add your first activity to start planning.")
-                Button(onClick = onAddActivity) {
+                Button(onClick = onAddActivity, enabled = actionsEnabled) {
                     Text("Add activity")
                 }
             }
@@ -136,11 +200,12 @@ internal fun ItineraryContent(
         is ItineraryUiState.Success -> {
             Column(modifier = Modifier.fillMaxSize()) {
                 ItineraryDayList(
-                    uiState.itinerary, dateRange, onEditActivity,
+                    uiState.itinerary, dateRange, onEditActivity, onDeleteActivity, actionsEnabled,
                     modifier = Modifier.weight(1f)
                 )
                 Button(
                     onClick = onAddActivity,
+                    enabled = actionsEnabled,
                     modifier = Modifier.fillMaxWidth().padding(16.dp)
                 ) {
                     Text("Add activity")
@@ -167,6 +232,8 @@ private fun ItineraryDayList(
     itinerary: Itinerary,
     dateRange: TripDateRange,
     onEditActivity: (ActivityEditTarget) -> Unit,
+    onDeleteActivity: (ActivityEditTarget) -> Unit,
+    actionsEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -195,16 +262,24 @@ private fun ItineraryDayList(
                 }
             }
             items(day.activities, key = { "activity-${day.id}-${it.id}" }) { activity ->
-                ActivityCard(activity, onEdit = {
-                    onEditActivity(ActivityEditTarget(day.id, date, activity))
-                })
+                ActivityCard(
+                    activity,
+                    actionsEnabled = actionsEnabled,
+                    onEdit = { onEditActivity(ActivityEditTarget(day.id, date, activity)) },
+                    onDelete = { onDeleteActivity(ActivityEditTarget(day.id, date, activity)) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ActivityCard(activity: ItineraryActivity, onEdit: () -> Unit) {
+private fun ActivityCard(
+    activity: ItineraryActivity,
+    actionsEnabled: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -214,8 +289,13 @@ private fun ActivityCard(activity: ItineraryActivity, onEdit: () -> Unit) {
             Text(activity.title, style = MaterialTheme.typography.titleMedium)
             activity.location?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
             activity.notes?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            Button(onClick = onEdit) {
-                Text("Edit")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onEdit, enabled = actionsEnabled) {
+                    Text("Edit")
+                }
+                TextButton(onClick = onDelete, enabled = actionsEnabled) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }

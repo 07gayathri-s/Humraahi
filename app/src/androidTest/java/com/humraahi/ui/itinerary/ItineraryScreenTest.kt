@@ -3,6 +3,7 @@ package com.humraahi.ui.itinerary
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -29,7 +30,9 @@ class ItineraryScreenTest {
         state: ItineraryUiState,
         onRetry: () -> Unit = {},
         onAddActivity: () -> Unit = {},
-        onEditActivity: (ActivityEditTarget) -> Unit = {}
+        onEditActivity: (ActivityEditTarget) -> Unit = {},
+        onDeleteActivity: (ActivityEditTarget) -> Unit = {},
+        actionsEnabled: Boolean = true
     ) {
         composeRule.setContent {
             MaterialTheme {
@@ -38,7 +41,9 @@ class ItineraryScreenTest {
                     dateRange = TripDateRange("2026-10-20", "2026-10-22"),
                     onRetry = onRetry,
                     onAddActivity = onAddActivity,
-                    onEditActivity = onEditActivity
+                    onEditActivity = onEditActivity,
+                    onDeleteActivity = onDeleteActivity,
+                    actionsEnabled = actionsEnabled
                 )
             }
         }
@@ -151,6 +156,39 @@ class ItineraryScreenTest {
 
         composeRule.runOnIdle {
             assertEquals(ActivityEditTarget("day-1", "2026-10-20", activity), selected)
+        }
+    }
+
+    @Test
+    fun deleteActionProvidesOriginalSnapshotEvenForDayOutsideTripDates() {
+        val activity = ItineraryActivity(id = "activity-1", title = "Beach visit")
+        val itinerary = Itinerary(
+            tripId = "trip-1",
+            days = listOf(ItineraryDay(id = "day-4", dayNumber = 4, activities = listOf(activity)))
+        )
+        var selected: ActivityEditTarget? = null
+        show(ItineraryUiState.Success(itinerary), onDeleteActivity = { selected = it })
+
+        composeRule.onNodeWithText("Delete").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(ActivityEditTarget("day-4", null, activity), selected)
+        }
+    }
+
+    @Test
+    fun pendingMutationDisablesAddEditAndDelete() {
+        val itinerary = Itinerary(
+            tripId = "trip-1",
+            days = listOf(ItineraryDay(
+                id = "day-1", dayNumber = 1,
+                activities = listOf(ItineraryActivity(id = "activity-1", title = "Beach"))
+            ))
+        )
+        show(ItineraryUiState.Success(itinerary), actionsEnabled = false)
+
+        listOf("Add activity", "Edit", "Delete").forEach {
+            composeRule.onNodeWithText(it).assertIsNotEnabled()
         }
     }
 }
