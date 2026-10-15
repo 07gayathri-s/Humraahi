@@ -11,6 +11,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.humraahi.model.Itinerary
 import com.humraahi.model.ItineraryActivity
 import com.humraahi.model.ItineraryDay
+import com.humraahi.model.TripDateRange
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -25,14 +28,17 @@ class ItineraryScreenTest {
     private fun show(
         state: ItineraryUiState,
         onRetry: () -> Unit = {},
-        onAddActivity: () -> Unit = {}
+        onAddActivity: () -> Unit = {},
+        onEditActivity: (ActivityEditTarget) -> Unit = {}
     ) {
         composeRule.setContent {
             MaterialTheme {
                 ItineraryContent(
                     uiState = state,
+                    dateRange = TripDateRange("2026-10-20", "2026-10-22"),
                     onRetry = onRetry,
-                    onAddActivity = onAddActivity
+                    onAddActivity = onAddActivity,
+                    onEditActivity = onEditActivity
                 )
             }
         }
@@ -103,15 +109,14 @@ class ItineraryScreenTest {
         show(ItineraryUiState.Success(itinerary))
 
         listOf(
-            "Day 1",
-            "2026-10-20",
+            "Oct 20, 2026",
             "Arrival",
             "15:00",
             "Hotel check-in",
             "Candolim",
             "Bring your booking confirmation.",
             "Sunset at the beach"
-        ).forEach { composeRule.onNodeWithText(it).assertIsDisplayed() }
+        ).forEach { composeRule.onNodeWithText(it).performScrollTo().assertIsDisplayed() }
         val checkIn = composeRule.onNodeWithText("Hotel check-in").fetchSemanticsNode()
         val sunset = composeRule.onNodeWithText("Sunset at the beach").fetchSemanticsNode()
         assertTrue(checkIn.boundsInRoot.top < sunset.boundsInRoot.top)
@@ -128,7 +133,24 @@ class ItineraryScreenTest {
             )
         )
 
-        composeRule.onNodeWithText("Day 1").assertIsDisplayed()
+        composeRule.onNodeWithText("Oct 20, 2026").assertIsDisplayed()
         composeRule.onNodeWithText("No activities planned for this day.").assertIsDisplayed()
+    }
+
+    @Test
+    fun editActionProvidesOriginalActivityAndDateForLegacyNumberedDay() {
+        val activity = ItineraryActivity(id = "activity-1", title = "Beach visit")
+        val itinerary = Itinerary(
+            tripId = "trip-1",
+            days = listOf(ItineraryDay(id = "day-1", dayNumber = 1, activities = listOf(activity)))
+        )
+        var selected: ActivityEditTarget? = null
+        show(ItineraryUiState.Success(itinerary), onEditActivity = { selected = it })
+
+        composeRule.onAllNodesWithText("Edit")[0].performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(ActivityEditTarget("day-1", "2026-10-20", activity), selected)
+        }
     }
 }

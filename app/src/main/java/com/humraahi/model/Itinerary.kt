@@ -6,24 +6,74 @@ data class Itinerary(
     val tripId: String,
     val days: List<ItineraryDay> = emptyList()
 ) {
-    fun withActivity(dayNumber: Int, activity: ItineraryActivity): Itinerary {
+    fun withActivity(
+        dayNumber: Int,
+        activity: ItineraryActivity,
+        date: String? = null
+    ): Itinerary {
         require(dayNumber > 0) { "Day number must be at least 1." }
         require(activity.title.isNotBlank()) { "Activity name cannot be empty." }
 
-        val existingDay = days.firstOrNull { it.dayNumber == dayNumber }
+        val existingDay = days.firstOrNull {
+            if (date == null) it.dayNumber == dayNumber
+            else it.date == date || (it.date == null && it.dayNumber == dayNumber)
+        }
         val updatedDays = if (existingDay == null) {
-            (days + ItineraryDay(dayNumber = dayNumber, activities = listOf(activity)))
+            (days + ItineraryDay(dayNumber = dayNumber, date = date, activities = listOf(activity)))
                 .sortedBy { it.dayNumber }
         } else {
             days.map { day ->
                 if (day.id == existingDay.id) {
-                    day.copy(activities = day.activities + activity)
+                    day.copy(
+                        dayNumber = dayNumber,
+                        date = date ?: day.date,
+                        activities = day.activities + activity
+                    )
                 } else {
                     day
                 }
             }
         }
         return copy(days = updatedDays)
+    }
+
+    fun withUpdatedActivity(
+        sourceDayId: String,
+        originalActivity: ItineraryActivity,
+        dayNumber: Int,
+        date: String,
+        activity: ItineraryActivity
+    ): Itinerary {
+        require(dayNumber > 0) { "Day number must be at least 1." }
+        require(activity.title.isNotBlank()) { "Activity name cannot be empty." }
+        require(activity.id == originalActivity.id) { "An edit must preserve the activity ID." }
+        val sourceDay = days.firstOrNull { it.id == sourceDayId }
+            ?: error("This day no longer exists. Close and reopen the activity.")
+        val current = sourceDay.activities.firstOrNull { it.id == originalActivity.id }
+            ?: error("This activity no longer exists on this day. Close and reopen it.")
+        check(current == originalActivity) {
+            "This activity was changed by another member. Close and reopen it before editing."
+        }
+        val destination = days.firstOrNull {
+            it.date == date || (it.date == null && it.dayNumber == dayNumber)
+        }
+        if (destination?.id == sourceDay.id) {
+            return copy(days = days.map { day ->
+                if (day.id == sourceDay.id) {
+                    day.copy(
+                        dayNumber = dayNumber,
+                        date = date,
+                        activities = day.activities.map { if (it.id == activity.id) activity else it }
+                    )
+                } else day
+            })
+        }
+        val withoutOriginal = copy(days = days.map { day ->
+            if (day.id == sourceDay.id) {
+                day.copy(activities = day.activities.filterNot { it.id == originalActivity.id })
+            } else day
+        })
+        return withoutOriginal.withActivity(dayNumber, activity, date)
     }
 
     fun toMap(): Map<String, Any> = mapOf(

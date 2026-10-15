@@ -135,7 +135,19 @@ fun TripDetailScreen(
                     ) { page ->
                         when (page) {
                             0 -> ChatScreen(tripId = tripId)
-                            1 -> ItineraryScreen(tripId = tripId)
+                            1 -> {
+                                val loadedTrip = trip
+                                if (loadedTrip != null) {
+                                    ItineraryScreen(trip = loadedTrip)
+                                } else {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator()
+                                    }
+                                }
+                            }
                         }
                     }
                 }

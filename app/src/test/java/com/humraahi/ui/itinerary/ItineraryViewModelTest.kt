@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModelStore
 import com.humraahi.model.Itinerary
 import com.humraahi.model.ItineraryActivity
 import com.humraahi.model.ItineraryDay
+import com.humraahi.model.TripDateRange
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -47,9 +48,11 @@ class ItineraryViewModelTest {
 
     private fun createViewModel(
         updates: Flow<Itinerary?>,
-        addActivity: suspend (Int, ItineraryActivity) -> Unit = { _, _ -> }
+        updateActivity: suspend (ActivityEditTarget, String, ItineraryActivity) -> Unit = { _, _, _ -> },
+        addActivity: suspend (String, ItineraryActivity) -> Unit = { _, _ -> }
     ): ItineraryViewModel =
-        ItineraryViewModel(updates, addActivity).also { viewModelStore.put("itinerary", it) }
+        ItineraryViewModel(updates, addActivity, updateActivity)
+            .also { viewModelStore.put("itinerary", it) }
 
     @Test
     fun startsLoadingUntilFirstEmission() = runTest(dispatcher) {
@@ -170,15 +173,15 @@ class ItineraryViewModelTest {
     }
 
     @Test
-    fun invalidDayNumbersDoNotSave() = runTest(dispatcher) {
+    fun invalidDatesDoNotSave() = runTest(dispatcher) {
         var saves = 0
         val viewModel = createViewModel(flowOf(null)) { _, _ -> saves++ }
 
-        listOf("", "0", "-1", "abc", "2147483648").forEach { day ->
-            viewModel.saveActivity(day, "Beach visit", "", "", "")
+        listOf("", "1", "abc", "2026-02-30", "2026-13-01", "2026-1-1").forEach { date ->
+            viewModel.saveActivity(date, "Beach visit", "", "", "")
             runCurrent()
             assertEquals(
-                ItinerarySaveState.Error("Day number must be at least 1."),
+                ItinerarySaveState.Error("Choose a valid activity date."),
                 viewModel.saveState.value
             )
         }
@@ -190,7 +193,7 @@ class ItineraryViewModelTest {
         var saves = 0
         val viewModel = createViewModel(flowOf(null)) { _, _ -> saves++ }
 
-        viewModel.saveActivity("1", "   ", "", "", "")
+        viewModel.saveActivity("2026-10-20", "   ", "", "", "")
         runCurrent()
 
         assertEquals(
@@ -206,7 +209,7 @@ class ItineraryViewModelTest {
         val viewModel = createViewModel(flowOf(null)) { _, _ -> saves++ }
 
         listOf("24:00", "18:60", "8:00", "sunset").forEach { time ->
-            viewModel.saveActivity("1", "Beach visit", time, "", "")
+            viewModel.saveActivity("2026-10-20", "Beach visit", time, "", "")
             runCurrent()
             assertEquals(
                 ItinerarySaveState.Error(
@@ -220,19 +223,19 @@ class ItineraryViewModelTest {
 
     @Test
     fun savesTrimmedFieldsAndShowsSuccess() = runTest(dispatcher) {
-        var savedDay: Int? = null
+        var savedDate: String? = null
         var savedActivity: ItineraryActivity? = null
-        val viewModel = createViewModel(flowOf(null)) { day, activity ->
-            savedDay = day
+        val viewModel = createViewModel(flowOf(null)) { date, activity ->
+            savedDate = date
             savedActivity = activity
         }
         assertEquals(ItinerarySaveState.Idle, viewModel.saveState.value)
 
-        viewModel.saveActivity(" 2 ", " Beach visit ", " 18:00 ", " Goa ", " Bring water ")
+        viewModel.saveActivity("2026-10-21", " Beach visit ", " 18:00 ", " Goa ", " Bring water ")
         assertEquals(ItinerarySaveState.Saving, viewModel.saveState.value)
         runCurrent()
 
-        assertEquals(2, savedDay)
+        assertEquals("2026-10-21", savedDate)
         assertNotNull(savedActivity)
         assertEquals("Beach visit", savedActivity?.title)
         assertEquals("18:00", savedActivity?.startTime)
@@ -248,7 +251,7 @@ class ItineraryViewModelTest {
         var savedActivity: ItineraryActivity? = null
         val viewModel = createViewModel(flowOf(null)) { _, activity -> savedActivity = activity }
 
-        viewModel.saveActivity("1", "Explore", " ", " ", " ")
+        viewModel.saveActivity("2026-10-20", "Explore", " ", " ", " ")
         runCurrent()
 
         assertNotNull(savedActivity)
@@ -266,7 +269,7 @@ class ItineraryViewModelTest {
         }
 
         listOf("00:00", "23:59").forEach { time ->
-            viewModel.saveActivity("1", "Explore", time, "", "")
+            viewModel.saveActivity("2026-10-20", "Explore", time, "", "")
             runCurrent()
             assertEquals(ItinerarySaveState.Success, viewModel.saveState.value)
         }
@@ -281,14 +284,14 @@ class ItineraryViewModelTest {
             if (attempts == 1) throw IllegalStateException("Connection failed")
         }
 
-        viewModel.saveActivity("1", "Explore", "", "", "")
+        viewModel.saveActivity("2026-10-20", "Explore", "", "", "")
         runCurrent()
         assertEquals(
             ItinerarySaveState.Error("Connection failed"),
             viewModel.saveState.value
         )
 
-        viewModel.saveActivity("1", "Explore", "", "", "")
+        viewModel.saveActivity("2026-10-20", "Explore", "", "", "")
         runCurrent()
         assertEquals(2, attempts)
         assertEquals(ItinerarySaveState.Success, viewModel.saveState.value)
@@ -298,7 +301,7 @@ class ItineraryViewModelTest {
     fun saveFailureWithoutMessageShowsHelpfulError() = runTest(dispatcher) {
         val viewModel = createViewModel(flowOf(null)) { _, _ -> throw IllegalStateException() }
 
-        viewModel.saveActivity("1", "Explore", "", "", "")
+        viewModel.saveActivity("2026-10-20", "Explore", "", "", "")
         runCurrent()
 
         assertEquals(
@@ -316,10 +319,10 @@ class ItineraryViewModelTest {
             completion.await()
         }
 
-        viewModel.saveActivity("1", "Explore", "", "", "")
+        viewModel.saveActivity("2026-10-20", "Explore", "", "", "")
         runCurrent()
         viewModel.resetSaveState()
-        viewModel.saveActivity("1", "Explore", "", "", "")
+        viewModel.saveActivity("2026-10-20", "Explore", "", "", "")
         runCurrent()
         assertEquals(1, saves)
         assertEquals(ItinerarySaveState.Saving, viewModel.saveState.value)
@@ -332,14 +335,14 @@ class ItineraryViewModelTest {
     @Test
     fun savedActivityAppearsThroughObservationWithoutManualReload() = runTest(dispatcher) {
         val updates = MutableStateFlow<Itinerary?>(null)
-        val viewModel = createViewModel(updates) { day, activity ->
+        val viewModel = createViewModel(updates) { date, activity ->
             updates.value = (updates.value ?: Itinerary(tripId = "trip-1"))
-                .withActivity(day, activity)
+                .withActivity(TripDateRange("2026-10-20", "2026-10-22").dayNumber(date), activity, date)
         }
         runCurrent()
         assertEquals(ItineraryUiState.Empty, viewModel.uiState.value)
 
-        viewModel.saveActivity("1", "Explore", "", "", "")
+        viewModel.saveActivity("2026-10-20", "Explore", "", "", "")
         runCurrent()
 
         assertEquals(ItinerarySaveState.Success, viewModel.saveState.value)
@@ -357,7 +360,7 @@ class ItineraryViewModelTest {
                 cancelled = true
             }
         }
-        viewModel.saveActivity("1", "Explore", "", "", "")
+        viewModel.saveActivity("2026-10-20", "Explore", "", "", "")
         runCurrent()
 
         viewModelStore.clear()
@@ -365,5 +368,65 @@ class ItineraryViewModelTest {
 
         assertEquals(true, cancelled)
         assertEquals(ItinerarySaveState.Saving, viewModel.saveState.value)
+    }
+
+    @Test
+    fun editingPreservesIdAndOriginalSnapshotAndDoesNotAddNewActivity() = runTest(dispatcher) {
+        val original = ItineraryActivity(
+            id = "activity-1", title = "Beach visit", startTime = "18:00", notes = "Bring water"
+        )
+        val target = ActivityEditTarget("day-1", "2026-10-20", original)
+        var additions = 0
+        var editedTarget: ActivityEditTarget? = null
+        var editedDate: String? = null
+        var editedActivity: ItineraryActivity? = null
+        val viewModel = createViewModel(
+            flowOf(itinerary),
+            updateActivity = { selected, date, activity ->
+                editedTarget = selected
+                editedDate = date
+                editedActivity = activity
+            },
+            addActivity = { _, _ -> additions++ }
+        )
+
+        viewModel.saveActivity("2026-10-21", " Sunset ", " 19:00 ", " Goa ", "", target)
+        runCurrent()
+
+        assertEquals(0, additions)
+        assertEquals(target, editedTarget)
+        assertEquals("2026-10-21", editedDate)
+        assertEquals(
+            original.copy(title = "Sunset", startTime = "19:00", location = "Goa", notes = null),
+            editedActivity
+        )
+        assertEquals(ItinerarySaveState.Success, viewModel.saveState.value)
+    }
+
+    @Test
+    fun invalidEditDoesNotWriteAndConflictIsShown() = runTest(dispatcher) {
+        val target = ActivityEditTarget(
+            "day-1", "2026-10-20", ItineraryActivity(id = "activity-1", title = "Beach visit")
+        )
+        var edits = 0
+        val viewModel = createViewModel(
+            flowOf(itinerary),
+            updateActivity = { _, _, _ ->
+                edits++
+                throw IllegalStateException("Activity changed; reopen it.")
+            }
+        )
+
+        viewModel.saveActivity("2026-10-20", " ", "", "", "", target)
+        runCurrent()
+        assertEquals(0, edits)
+        viewModel.saveActivity("2026-10-21", "Sunset", "", "", "", target)
+        runCurrent()
+
+        assertEquals(1, edits)
+        assertEquals(
+            ItinerarySaveState.Error("Activity changed; reopen it."),
+            viewModel.saveState.value
+        )
     }
 }

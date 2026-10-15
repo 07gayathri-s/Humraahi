@@ -1,9 +1,12 @@
 package com.humraahi.data
 
 import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.firestore.Transaction
 import com.google.firebase.ktx.Firebase
 import com.humraahi.model.Itinerary
 import com.humraahi.model.ItineraryActivity
+import com.humraahi.model.Trip
+import com.humraahi.model.TripDateRange
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -37,14 +40,42 @@ class ItineraryRepository {
             .await()
     }
 
-    suspend fun addActivity(tripId: String, dayNumber: Int, activity: ItineraryActivity) {
+    suspend fun addActivity(tripId: String, date: String, activity: ItineraryActivity) {
         val document = itineraryDocument(tripId)
         db.runTransaction { transaction ->
+            val dayNumber = readTripDates(transaction, tripId).dayNumber(date)
             val snapshot = transaction.get(document)
             val itinerary = snapshot.data?.let { Itinerary.fromMap(tripId, it) }
                 ?: Itinerary(tripId = tripId)
-            transaction.set(document, itinerary.withActivity(dayNumber, activity).toMap())
+            transaction.set(document, itinerary.withActivity(dayNumber, activity, date).toMap())
         }.await()
+    }
+
+    suspend fun updateActivity(
+        tripId: String,
+        sourceDayId: String,
+        originalActivity: ItineraryActivity,
+        date: String,
+        activity: ItineraryActivity
+    ) {
+        val document = itineraryDocument(tripId)
+        db.runTransaction { transaction ->
+            val dayNumber = readTripDates(transaction, tripId).dayNumber(date)
+            val snapshot = transaction.get(document)
+            val itinerary = snapshot.data?.let { Itinerary.fromMap(tripId, it) }
+                ?: error("This itinerary no longer exists. Close and reopen it.")
+            val updated = itinerary.withUpdatedActivity(
+                sourceDayId, originalActivity, dayNumber, date, activity
+            )
+            transaction.set(document, updated.toMap())
+        }.await()
+    }
+
+    private fun readTripDates(transaction: Transaction, tripId: String): TripDateRange {
+        val snapshot = transaction.get(db.collection("trips").document(tripId))
+        val trip = snapshot.data?.let { Trip.fromMap(tripId, it) }
+            ?: error("This trip no longer exists.")
+        return TripDateRange(trip.startDate, trip.endDate)
     }
 
     private fun itineraryDocument(tripId: String) =

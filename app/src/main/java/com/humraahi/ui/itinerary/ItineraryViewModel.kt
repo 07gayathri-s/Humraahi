@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.humraahi.data.ItineraryRepository
 import com.humraahi.model.Itinerary
 import com.humraahi.model.ItineraryActivity
+import com.humraahi.util.DateFormatter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -18,7 +19,8 @@ import kotlinx.coroutines.launch
 
 class ItineraryViewModel(
     private val itineraryUpdates: Flow<Itinerary?>,
-    private val addActivity: suspend (Int, ItineraryActivity) -> Unit
+    private val addActivity: suspend (String, ItineraryActivity) -> Unit,
+    private val updateActivity: suspend (ActivityEditTarget, String, ItineraryActivity) -> Unit
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<ItineraryUiState>(ItineraryUiState.Loading)
     val uiState: StateFlow<ItineraryUiState> = _uiState.asStateFlow()
@@ -35,17 +37,19 @@ class ItineraryViewModel(
     }
 
     fun saveActivity(
-        dayNumber: String,
+        date: String,
         title: String,
         startTime: String,
         location: String,
-        notes: String
+        notes: String,
+        editTarget: ActivityEditTarget? = null
     ) {
         if (_saveState.value is ItinerarySaveState.Saving) return
 
-        val parsedDay = dayNumber.trim().toIntOrNull()
-        if (parsedDay == null || parsedDay < 1) {
-            _saveState.value = ItinerarySaveState.Error("Day number must be at least 1.")
+        try {
+            DateFormatter.parseStorageDate(date)
+        } catch (error: IllegalArgumentException) {
+            _saveState.value = ItinerarySaveState.Error("Choose a valid activity date.")
             return
         }
         val trimmedTitle = title.trim()
@@ -61,16 +65,26 @@ class ItineraryViewModel(
             return
         }
 
-        val activity = ItineraryActivity(
+        val details = ItineraryActivity(
             title = trimmedTitle,
             startTime = time,
             location = location.trim().takeIf { it.isNotEmpty() },
             notes = notes.trim().takeIf { it.isNotEmpty() }
         )
+        val activity = editTarget?.activity?.copy(
+            title = details.title,
+            startTime = details.startTime,
+            location = details.location,
+            notes = details.notes
+        ) ?: details
         _saveState.value = ItinerarySaveState.Saving
         viewModelScope.launch {
             try {
-                addActivity(parsedDay, activity)
+                if (editTarget == null) {
+                    addActivity(date, activity)
+                } else {
+                    updateActivity(editTarget, date, activity)
+                }
                 _saveState.value = ItinerarySaveState.Success
             } catch (error: CancellationException) {
                 throw error
@@ -119,8 +133,13 @@ class ItineraryViewModel(
                 @Suppress("UNCHECKED_CAST")
                 return ItineraryViewModel(
                     itineraryUpdates = repository.observeItinerary(tripId),
-                    addActivity = { dayNumber, activity ->
-                        repository.addActivity(tripId, dayNumber, activity)
+                    addActivity = { date, activity ->
+                        repository.addActivity(tripId, date, activity)
+                    },
+                    updateActivity = { target, date, activity ->
+                        repository.updateActivity(
+                            tripId, target.dayId, target.activity, date, activity
+                        )
                     }
                 ) as T
             }
